@@ -128,6 +128,13 @@ static CGFloat CHTFloorCGFloat(CGFloat value) {
   return CHTFloorCGFloat((width - (columnCount - 1) * columnSpacing) / columnCount);
 }
 
+-(void)setFloatHeaders:(BOOL)floatHeaders{
+    if (_floatHeaders != floatHeaders){
+        _floatHeaders = floatHeaders;
+        [self invalidateLayout];
+    }
+}
+
 #pragma mark - Private Accessors
 - (NSMutableDictionary *)headersAttribute {
   if (!_headersAttribute) {
@@ -177,6 +184,7 @@ static CGFloat CHTFloorCGFloat(CGFloat value) {
 
 #pragma mark - Init
 - (void)commonInit {
+  _floatHeaders = NO;
   _columnCount = 2;
   _minimumColumnSpacing = 10;
   _minimumInteritemSpacing = 10;
@@ -443,7 +451,74 @@ static CGFloat CHTFloorCGFloat(CGFloat value) {
       [attrs addObject:attr];
     }
   }
+    if (_floatHeaders){
 
+        NSInteger endToTest = MAX(end-1, 0);
+
+        if ([self.allItemAttributes count] > 0 && self.allItemAttributes[begin] && self.allItemAttributes[endToTest] ){
+            NSInteger sectionOfBegin = [[(UICollectionViewLayoutAttributes *)self.allItemAttributes[begin] indexPath] section];
+            NSInteger sectionOfEnd = [[(UICollectionViewLayoutAttributes *)self.allItemAttributes[endToTest] indexPath] section];
+
+            for (NSInteger visibleSection = sectionOfBegin; visibleSection <= sectionOfEnd; visibleSection++){
+
+                UICollectionViewLayoutAttributes *beyondVisibleAttribute = self.headersAttribute[@(visibleSection)];
+                // add headers that aren't visible and may be beyond the rect
+                if (beyondVisibleAttribute && !CGRectIntersectsRect(rect, beyondVisibleAttribute.frame) ){
+                    [attrs addObject:beyondVisibleAttribute];
+                }
+            }
+        }
+
+        for (UICollectionViewLayoutAttributes *layoutAttributes in attrs) {
+
+            if (layoutAttributes.representedElementKind == CHTCollectionElementKindSectionHeader){
+
+                NSInteger section = layoutAttributes.indexPath.section;
+                NSInteger numberOfItemsInSection = [self.collectionView numberOfItemsInSection:section];
+
+                NSIndexPath *firstObjectIndexPath = [NSIndexPath indexPathForItem:0 inSection:section];
+                NSIndexPath *lastObjectIndexPath = [NSIndexPath indexPathForItem:MAX(0, (numberOfItemsInSection - 1)) inSection:section];
+
+                UICollectionViewLayoutAttributes *firstObjectAttrs;
+                UICollectionViewLayoutAttributes *lastObjectAttrs;
+
+                if (numberOfItemsInSection > 0) { // no need to calculate if there aren't items in the section
+                    firstObjectAttrs = [self layoutAttributesForItemAtIndexPath:firstObjectIndexPath];
+                    lastObjectAttrs = [self layoutAttributesForItemAtIndexPath:lastObjectIndexPath];
+
+
+                    CGFloat topHeaderHeight =  CGRectGetHeight(layoutAttributes.frame);
+                    CGFloat bottomHeaderHeight = CGRectGetHeight(layoutAttributes.frame);
+                    CGRect frameWithEdgeInsets = UIEdgeInsetsInsetRect(layoutAttributes.frame,
+                                                                       self.collectionView.contentInset);
+
+                    CGPoint origin = frameWithEdgeInsets.origin ;
+
+                    CGFloat bottomInsetCompensation = self.headerInset.bottom;
+                    if ([self.delegate respondsToSelector:@selector(collectionView:layout:insetForHeaderInSection:)]){
+                        bottomInsetCompensation = [self.delegate collectionView:self.collectionView layout:self insetForHeaderInSection:section].bottom;
+                    }
+
+                    CGFloat topOfCV = self.collectionView.contentOffset.y + self.collectionView.contentInset.top;
+                    CGFloat topOfHeader =  CGRectGetMinY(firstObjectAttrs.frame) - topHeaderHeight - bottomInsetCompensation ;
+
+                    CGFloat lastYToFloatOn = (CGRectGetMaxY(lastObjectAttrs.frame) - bottomHeaderHeight);
+
+
+                    origin.y = MIN(
+                                   MAX(
+                                       topOfCV,
+                                       topOfHeader
+                                       ),
+                                   lastYToFloatOn
+                                   )  ;
+
+                    layoutAttributes.zIndex = 1024;
+                    layoutAttributes.frame = CGRectMake(0, origin.y, layoutAttributes.frame.size.width, layoutAttributes.frame.size.height);
+                }
+            }
+        }
+    }
   return [NSArray arrayWithArray:attrs];
 }
 
@@ -452,7 +527,7 @@ static CGFloat CHTFloorCGFloat(CGFloat value) {
   if (CGRectGetWidth(newBounds) != CGRectGetWidth(oldBounds)) {
     return YES;
   }
-  return NO;
+  return _floatHeaders;
 }
 
 #pragma mark - Private Methods

@@ -322,4 +322,13 @@ extern NSString *const CHTCollectionElementKindSectionFooter;
  */
 - (CGFloat)itemWidthInSectionAtIndex:(NSInteger)section;
 
+/**
+ *  @brief Set the headers to float when scrolling
+ *  @discussion
+ *    EXPERIMENTAL!! if YES, will float headers, where available
+ *    Default: NO
+ */
+@property (nonatomic, assign) BOOL floatHeaders;
+
+
 @end
